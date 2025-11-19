@@ -1,0 +1,37 @@
+project_id = "udgakyximdeorbylxhzw"
+
+[functions.manage-roles]
+verify_jwt = true
+
+[functions.manage-products]
+verify_jwt = true
+
+[functions.manage-orders]
+verify_jwt = true
+
+[functions.manage-discounts]
+verify_jwt = true
+
+[functions.manage-couriers]
+verify_jwt = true
+
+[functions.paystack-checkout]
+verify_jwt = true
+
+[functions.paystack-webhook]
+verify_jwt = false
+
+[functions.ai-semantic-search]
+verify_jwt = false
+
+[functions.ai-recommendations]
+verify_jwt = false
+
+[functions.ai-content-generator]
+verify_jwt = true
+
+[functions.ai-fraud-detection]
+verify_jwt = true
+
+[functions.courier-dispatch]
+verify_jwt = true
