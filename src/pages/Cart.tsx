@@ -22,16 +22,35 @@ const Cart = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch cart items
+      const { data: cartData, error: cartError } = await supabase
         .from("shopping_cart")
-        .select(`
-          *,
-          products (*)
-        `)
+        .select("*")
         .eq("user_id", user.id);
 
-      if (error) throw error;
-      setCartItems(data || []);
+      if (cartError) throw cartError;
+
+      if (!cartData || cartData.length === 0) {
+        setCartItems([]);
+        return;
+      }
+
+      // Fetch product details for all cart items
+      const productIds = cartData.map(item => item.product_id);
+      const { data: productsData, error: productsError } = await supabase
+        .from("products")
+        .select("*")
+        .in("id", productIds);
+
+      if (productsError) throw productsError;
+
+      // Merge cart items with product details
+      const mergedData = cartData.map(cartItem => ({
+        ...cartItem,
+        products: productsData?.find(p => p.id === cartItem.product_id) || null
+      })).filter(item => item.products !== null);
+
+      setCartItems(mergedData);
     } catch (error) {
       console.error("Error fetching cart:", error);
       toast({
@@ -47,7 +66,7 @@ const Cart = () => {
   useEffect(() => {
     // Wait for auth to finish loading
     if (authLoading) return;
-    
+
     if (!user) {
       navigate("/auth");
       return;
@@ -153,7 +172,7 @@ const Cart = () => {
     if (!appliedDiscount) return 0;
 
     const subtotal = calculateSubtotal();
-    
+
     if (appliedDiscount.min_purchase_amount && subtotal < appliedDiscount.min_purchase_amount) {
       return 0;
     }
@@ -207,9 +226,9 @@ const Cart = () => {
       <div className="container-custom py-8">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-heading-lg">Shopping Cart</h1>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={fetchCart}
             disabled={loading}
             className="gap-2"
