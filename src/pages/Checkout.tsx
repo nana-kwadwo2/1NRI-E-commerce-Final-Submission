@@ -176,15 +176,19 @@ const Checkout = () => {
         email: currentUser.email || "",
         amount: Math.round(totalAmount * 100), // Convert to kobo
         reference: orderNumber,
-        currency: 'GHS', // Ghana Cedis
+        currency: 'GHS',
         metadata: {
           order_id: order.id,
           user_id: currentUser.id,
         },
       };
 
-      // Import and use Paystack hook
-      const { initializePayment: initPaystack } = await import('@/hooks/usePaystack').then(m => m.usePaystack());
+      // Import and use PaystackButton dynamically
+      const { usePaystackPayment } = await import('react-paystack');
+      const initializePayment = usePaystackPayment({
+        ...paystackConfig,
+        publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '',
+      });
 
       const onSuccess = async (reference: any) => {
         try {
@@ -193,7 +197,7 @@ const Checkout = () => {
             .from("orders")
             .update({
               payment_status: "completed",
-              payment_reference: reference.reference || reference.trans || reference,
+              payment_reference: reference.reference,
               status: "processing",
             })
             .eq("id", order.id);
@@ -235,8 +239,6 @@ const Checkout = () => {
             title: "Error",
             description: "Payment successful but order update failed. Please contact support.",
           });
-        } finally {
-          setSubmitting(false);
         }
       };
 
@@ -249,7 +251,8 @@ const Checkout = () => {
       };
 
       // Trigger payment popup
-      initPaystack(paystackConfig, onSuccess, onClose);
+      initializePayment(onSuccess, onClose);
+
     } catch (error: any) {
       toast({
         variant: "destructive",
