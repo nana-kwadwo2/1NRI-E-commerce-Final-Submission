@@ -178,8 +178,18 @@ const Checkout = () => {
         reference: orderNumber,
         currency: 'GHS',
         metadata: {
-          order_id: order.id,
-          user_id: currentUser.id,
+          custom_fields: [
+            {
+              display_name: "Order ID",
+              variable_name: "order_id",
+              value: order.id,
+            },
+            {
+              display_name: "User ID",
+              variable_name: "user_id",
+              value: currentUser.id,
+            },
+          ],
         },
       };
 
@@ -191,8 +201,11 @@ const Checkout = () => {
       });
 
       const onSuccess = async (reference: any) => {
+        console.log('✅ Payment success callback triggered!', reference);
+
         try {
           // Update order status
+          console.log('Updating order...');
           await supabase
             .from("orders")
             .update({
@@ -203,6 +216,7 @@ const Checkout = () => {
             .eq("id", order.id);
 
           // Reduce stock
+          console.log('Reducing stock...');
           for (const item of cartItems) {
             const { data: product } = await supabase
               .from("products")
@@ -221,17 +235,21 @@ const Checkout = () => {
           }
 
           // Clear cart
+          console.log('Clearing cart...');
           await supabase
             .from("shopping_cart")
             .delete()
             .eq("user_id", currentUser.id);
+
+          console.log('All operations complete! Redirecting...');
 
           toast({
             title: "Payment Successful",
             description: "Your order has been placed successfully",
           });
 
-          navigate(`/orders/success?reference=${orderNumber}`);
+          // Use window.location for hard redirect to ensure page reloads
+          window.location.href = `/orders/success?reference=${orderNumber}`;
         } catch (error: any) {
           console.error("Error processing payment:", error);
           toast({
