@@ -1,6 +1,7 @@
 import { usePaystackPayment } from 'react-paystack';
 import { useToast } from './use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { GenericChildStackGroup, GenericChildStackGroup } from 'recharts/types/util/ChartUtils';
 
 const PAYSTACK_PUBLIC_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '';
 
@@ -8,6 +9,7 @@ interface PaystackConfig {
     email: string;
     amount: number; // in kobo (multiply by 100)
     reference: string;
+    currency: "GHS";
     metadata?: Record<string, any>;
 }
 
