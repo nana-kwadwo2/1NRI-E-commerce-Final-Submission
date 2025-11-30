@@ -28,7 +28,7 @@ const Checkout = () => {
   useEffect(() => {
     // Wait for auth to finish loading
     if (authLoading) return;
-    
+
     if (!user) {
       navigate("/auth");
       return;
@@ -40,21 +40,35 @@ const Checkout = () => {
     if (!user) return;
 
     try {
-      // Fetch cart
-      const { data: cart } = await supabase
+      // Fetch cart items
+      const { data: cartData, error: cartError } = await supabase
         .from("shopping_cart")
-        .select(`
-          *,
-          products (*)
-        `)
+        .select("*")
         .eq("user_id", user.id);
 
-      if (!cart || cart.length === 0) {
+      if (cartError) throw cartError;
+
+      if (!cartData || cartData.length === 0) {
         navigate("/cart");
         return;
       }
 
-      setCartItems(cart);
+      // Fetch product details for all cart items
+      const productIds = cartData.map(item => item.product_id);
+      const { data: productsData, error: productsError } = await supabase
+        .from("products")
+        .select("*")
+        .in("id", productIds);
+
+      if (productsError) throw productsError;
+
+      // Merge cart items with product details
+      const mergedData = cartData.map(cartItem => ({
+        ...cartItem,
+        products: productsData?.find(p => p.id === cartItem.product_id) || null
+      })).filter(item => item.products !== null);
+
+      setCartItems(mergedData);
 
       // Fetch profile for prefill
       const { data: profile } = await supabase
@@ -72,6 +86,11 @@ const Checkout = () => {
       }
     } catch (error) {
       console.error("Error fetching data:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load checkout data",
+      });
     } finally {
       setLoading(false);
     }
@@ -89,16 +108,40 @@ const Checkout = () => {
     setSubmitting(true);
 
     try {
-      // Prepare cart items for checkout - edge function expects product_id (snake_case)
-      const checkoutItems = cartItems.map((item) => ({
+      // Get user email
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Please sign in to continue",
+        });
+        navigate("/auth");
+        return;
+      }
+
+      // Calculate total
+      const totalAmount = calculateTotal();
+
+      // Generate order number
+      const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+      // Prepare cart items for order
+      const orderItems = cartItems.map((item) => ({
         product_id: item.product_id,
         quantity: item.quantity,
+        unit_price: item.products.discount_price || item.products.price,
+        subtotal: (item.products.discount_price || item.products.price) * item.quantity,
       }));
 
-      // Call Paystack checkout edge function
-      const { data, error } = await supabase.functions.invoke("paystack-checkout", {
-        body: {
-          cartItems: checkoutItems,
+      // Create order in database
+      const { data: order, error: orderError } = await supabase
+        .from("orders")
+        .insert({
+          user_id: currentUser.id,
+          order_number: orderNumber,
+          total_amount: totalAmount,
+          discount_amount: 0,
           shipping_address: {
             full_name: shippingAddress.full_name,
             phone: shippingAddress.phone,
@@ -108,18 +151,107 @@ const Checkout = () => {
             country: "Ghana",
             postal_code: shippingAddress.postal_code,
           },
+          status: "pending",
+          payment_status: "pending",
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItemsWithOrderId = orderItems.map(item => ({
+        ...item,
+        order_id: order.id,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from("order_items")
+        .insert(orderItemsWithOrderId);
+
+      if (itemsError) throw itemsError;
+
+      // Initialize Paystack payment
+      const paystackConfig = {
+        email: currentUser.email || "",
+        amount: Math.round(totalAmount * 100), // Convert to kobo
+        reference: orderNumber,
+        metadata: {
+          order_id: order.id,
+          user_id: currentUser.id,
         },
+      };
+
+      // Import and use PaystackButton dynamically
+      const { usePaystackPayment } = await import('react-paystack');
+      const initializePayment = usePaystackPayment({
+        ...paystackConfig,
+        publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '',
       });
 
-      if (error) throw error;
+      const onSuccess = async (reference: any) => {
+        try {
+          // Update order status
+          await supabase
+            .from("orders")
+            .update({
+              payment_status: "completed",
+              payment_reference: reference.reference,
+              status: "processing",
+            })
+            .eq("id", order.id);
 
-      // The edge function returns { order, payment: paystackData.data }
-      if (data?.payment?.authorization_url) {
-        // Redirect to Paystack payment page
-        window.location.href = data.payment.authorization_url;
-      } else {
-        throw new Error("Payment initialization failed");
-      }
+          // Reduce stock
+          for (const item of cartItems) {
+            const { data: product } = await supabase
+              .from("products")
+              .select("stock_quantity")
+              .eq("id", item.product_id)
+              .single();
+
+            if (product) {
+              await supabase
+                .from("products")
+                .update({
+                  stock_quantity: product.stock_quantity - item.quantity,
+                })
+                .eq("id", item.product_id);
+            }
+          }
+
+          // Clear cart
+          await supabase
+            .from("shopping_cart")
+            .delete()
+            .eq("user_id", currentUser.id);
+
+          toast({
+            title: "Payment Successful",
+            description: "Your order has been placed successfully",
+          });
+
+          navigate(`/orders/success?reference=${orderNumber}`);
+        } catch (error: any) {
+          console.error("Error processing payment:", error);
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Payment successful but order update failed. Please contact support.",
+          });
+        }
+      };
+
+      const onClose = () => {
+        setSubmitting(false);
+        toast({
+          title: "Payment Cancelled",
+          description: "You can retry payment from your orders page",
+        });
+      };
+
+      // Trigger payment popup
+      initializePayment(onSuccess, onClose);
+
     } catch (error: any) {
       toast({
         variant: "destructive",
