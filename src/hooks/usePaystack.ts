@@ -1,7 +1,5 @@
 import { usePaystackPayment } from 'react-paystack';
 import { useToast } from './use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { GenericChildStackGroup, GenericChildStackGroup } from 'recharts/types/util/ChartUtils';
 
 const PAYSTACK_PUBLIC_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '';
 
@@ -9,8 +7,16 @@ interface PaystackConfig {
     email: string;
     amount: number; // in kobo (multiply by 100)
     reference: string;
-    currency: "GHS";
-    metadata?: Record<string, any>;
+    currency?: string;
+    metadata?: {
+        order_id?: string;
+        user_id?: string;
+        custom_fields?: Array<{
+            display_name: string;
+            variable_name: string;
+            value: string;
+        }>;
+    };
 }
 
 export const usePaystack = () => {
@@ -18,11 +24,15 @@ export const usePaystack = () => {
 
     const initializePayment = (
         config: PaystackConfig,
-        onSuccess: (reference: string) => void,
+        onSuccess: (reference: any) => void,
         onClose: () => void
     ) => {
         const paystackConfig = {
-            ...config,
+            email: config.email,
+            amount: config.amount,
+            reference: config.reference,
+            currency: config.currency || 'GHS',
+            metadata: config.metadata,
             publicKey: PAYSTACK_PUBLIC_KEY,
         };
 
@@ -30,7 +40,7 @@ export const usePaystack = () => {
 
         const handleSuccess = (reference: any) => {
             console.log('Payment successful:', reference);
-            onSuccess(reference.reference || reference.trans || reference);
+            onSuccess(reference);
         };
 
         const handleClose = () => {
@@ -42,27 +52,11 @@ export const usePaystack = () => {
             onClose();
         };
 
-        return {
-            initializePayment: () => initializePaystackPayment(handleSuccess, handleClose),
-        };
-    };
-
-    const verifyPayment = async (reference: string) => {
-        try {
-            const { data, error } = await supabase.functions.invoke('verify-payment', {
-                body: { reference },
-            });
-
-            if (error) throw error;
-            return data;
-        } catch (error: any) {
-            console.error('Payment verification error:', error);
-            throw error;
-        }
+        // Call the payment initialization
+        initializePaystackPayment(handleSuccess, handleClose);
     };
 
     return {
         initializePayment,
-        verifyPayment,
     };
 };

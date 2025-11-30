@@ -176,6 +176,7 @@ const Checkout = () => {
         email: currentUser.email || "",
         amount: Math.round(totalAmount * 100), // Convert to kobo
         reference: orderNumber,
+        currency: 'GHS', // Ghana Cedis
         metadata: {
           order_id: order.id,
           user_id: currentUser.id,
