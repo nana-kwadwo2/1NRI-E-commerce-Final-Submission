@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2, Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
+import { Loader2, Minus, Plus, Trash2, ShoppingBag, RefreshCw } from "lucide-react";
 
 const Cart = () => {
   const navigate = useNavigate();
@@ -17,20 +17,10 @@ const Cart = () => {
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
 
-  useEffect(() => {
-    // Wait for auth to finish loading
-    if (authLoading) return;
-    
-    if (!user) {
-      navigate("/auth");
-      return;
-    }
-    fetchCart();
-  }, [user, authLoading, navigate]);
-
-  const fetchCart = async () => {
+  const fetchCart = useCallback(async () => {
     if (!user) return;
 
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from("shopping_cart")
@@ -44,10 +34,26 @@ const Cart = () => {
       setCartItems(data || []);
     } catch (error) {
       console.error("Error fetching cart:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load cart items",
+      });
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
+
+  useEffect(() => {
+    // Wait for auth to finish loading
+    if (authLoading) return;
+    
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+    fetchCart();
+  }, [user, authLoading, navigate, fetchCart]);
 
   const updateQuantity = async (itemId: string, newQuantity: number) => {
     if (newQuantity < 1) return;
@@ -199,7 +205,19 @@ const Cart = () => {
       <Header />
 
       <div className="container-custom py-8">
-        <h1 className="text-heading-lg mb-8">Shopping Cart</h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-heading-lg">Shopping Cart</h1>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={fetchCart}
+            disabled={loading}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh Cart
+          </Button>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Cart Items */}
