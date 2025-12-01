@@ -9,8 +9,8 @@ const Index = () => {
   const navigate = useNavigate();
   const [heroImage, setHeroImage] = useState<string | null>(null);
   const [aboutText, setAboutText] = useState<string>("");
-  const [socialLinks, setSocialLinks] = useState<any>({});
-  const [categories, setCategories] = useState<any[]>([]);
+  const [socialLinks, setSocialLinks] = useState<Record<string, string>>({});
+  const [categories, setCategories] = useState<Array<{ id: string; name: string; description?: string }>>([]);
 
   useEffect(() => {
     fetchSiteSettings();
@@ -18,25 +18,56 @@ const Index = () => {
   }, []);
 
   const fetchSiteSettings = async () => {
-    const { data } = await supabase
-      .from("site_settings")
-      .select("hero_image_url, about_text, social_links")
-      .single();
-    
-    if (data) {
-      if (data.hero_image_url) setHeroImage(data.hero_image_url);
-      if (data.about_text) setAboutText(data.about_text);
-      if (data.social_links) setSocialLinks(data.social_links);
+    try {
+      const { data, error } = await supabase
+        .from("site_settings")
+        .select("hero_image_url, about_text, social_links")
+        .single();
+
+      if (error) {
+        console.error("Error fetching site settings:", error);
+        // If no rows exist, this is expected on first setup
+        if (error.code === 'PGRST116') {
+          console.log("No site settings found - this is normal for initial setup");
+        }
+        return;
+      }
+
+      if (data) {
+        console.log("Site settings loaded:", data);
+        if (data.hero_image_url) {
+          console.log("Setting hero image:", data.hero_image_url);
+          setHeroImage(data.hero_image_url);
+        } else {
+          console.log("No hero image URL found in database");
+        }
+        if (data.about_text) setAboutText(data.about_text);
+        if (data.social_links) setSocialLinks(data.social_links);
+      }
+    } catch (error) {
+      console.error("Unexpected error in fetchSiteSettings:", error);
     }
   };
 
   const fetchCategories = async () => {
-    const { data } = await supabase
-      .from("categories")
-      .select("*")
-      .eq("is_active", true);
-    
-    if (data) setCategories(data);
+    try {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("*")
+        .eq("is_active", true);
+
+      if (error) {
+        console.error("Error fetching categories:", error);
+        return;
+      }
+
+      if (data) {
+        console.log("Categories loaded:", data.length, "categories");
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error("Unexpected error in fetchCategories:", error);
+    }
   };
 
   const scrollToCategories = () => {
@@ -46,9 +77,9 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       {/* Hero Section */}
-      <section 
+      <section
         className="relative h-[80vh] flex items-center justify-center"
         style={{
           backgroundImage: heroImage ? `url(${heroImage})` : 'none',
@@ -59,17 +90,17 @@ const Index = () => {
       >
         {heroImage && <div className="absolute inset-0 bg-black/40" />}
         <div className="relative z-10 text-center space-y-6">
-          <Button 
-            size="lg" 
-            className="text-lg px-8 py-6" 
+          <Button
+            size="lg"
+            className="text-lg px-8 py-6"
             onClick={() => navigate("/products")}
           >
             Shop Now
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
           <div>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="lg"
               className="text-lg px-8 py-6 bg-background/80 backdrop-blur-sm"
               onClick={scrollToCategories}
@@ -161,7 +192,7 @@ const Index = () => {
                   className="p-3 bg-card border border-border rounded-full hover:bg-primary hover:text-primary-foreground transition-colors"
                 >
                   <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
                   </svg>
                 </a>
               )}
