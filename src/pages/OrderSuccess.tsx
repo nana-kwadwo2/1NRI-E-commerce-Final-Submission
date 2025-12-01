@@ -15,7 +15,10 @@ const OrderSuccess = () => {
   useEffect(() => {
     const reference = searchParams.get("reference");
 
+    console.log("OrderSuccess mounted with reference:", reference);
+
     if (!reference) {
+      console.error("No reference provided in URL");
       setError("Invalid payment reference");
       setLoading(false);
       return;
@@ -24,8 +27,13 @@ const OrderSuccess = () => {
     verifyPayment(reference);
   }, [searchParams]);
 
-  const verifyPayment = async (reference: string) => {
+  const verifyPayment = async (reference: string, retryCount = 0) => {
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second
+
     try {
+      console.log(`Fetching order with reference: ${reference} (attempt ${retryCount + 1}/${maxRetries + 1})`);
+
       // Fetch order by reference
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
@@ -41,24 +49,46 @@ const OrderSuccess = () => {
 
       if (orderError) {
         console.error("Error fetching order:", orderError);
-        setError("Order not found");
+
+        // If not found and we haven't exceeded retries, try again
+        if (orderError.code === 'PGRST116' && retryCount < maxRetries) {
+          console.log(`Order not found yet, retrying in ${retryDelay}ms...`);
+          setTimeout(() => {
+            verifyPayment(reference, retryCount + 1);
+          }, retryDelay);
+          return;
+        }
+
+        setError("Order not found. Please check your orders page or contact support.");
         setLoading(false);
         return;
       }
 
       if (!orderData) {
-        setError("Order not found");
+        console.error("No order data returned");
+
+        // Retry if we haven't exceeded max attempts
+        if (retryCount < maxRetries) {
+          console.log(`No data returned, retrying in ${retryDelay}ms...`);
+          setTimeout(() => {
+            verifyPayment(reference, retryCount + 1);
+          }, retryDelay);
+          return;
+        }
+
+        setError("Order not found. Please check your orders page or contact support.");
         setLoading(false);
         return;
       }
 
+      console.log("Order found successfully:", orderData);
       setOrder(orderData);
+      setLoading(false);
       // Cart is already cleared in Checkout.tsx
 
     } catch (err) {
-      console.error("Error verifying payment:", err);
-      setError("Failed to verify payment");
-    } finally {
+      console.error("Unexpected error verifying payment:", err);
+      setError("Failed to verify payment. Please check your orders page.");
       setLoading(false);
     }
   };

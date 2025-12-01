@@ -43,7 +43,10 @@ const ProductDetail = () => {
   };
 
   const addToCart = async () => {
+    console.log("Adding to cart, user state:", user ? "Logged in" : "Logged out", user?.id);
+
     if (!user) {
+      console.log("User not logged in, redirecting to auth");
       toast({
         title: "Please sign in",
         description: "You need to be logged in to add items to cart",
@@ -56,14 +59,20 @@ const ProductDetail = () => {
 
     try {
       // Check if item already in cart
-      const { data: existingItem } = await supabase
+      const { data: existingItem, error: fetchError } = await supabase
         .from("shopping_cart")
         .select("*")
         .eq("user_id", user.id)
         .eq("product_id", id)
         .maybeSingle();
 
+      if (fetchError) {
+        console.error("Error fetching cart item:", fetchError);
+        throw fetchError;
+      }
+
       if (existingItem) {
+        console.log("Updating existing cart item:", existingItem.id);
         // Update quantity
         const { error } = await supabase
           .from("shopping_cart")
@@ -71,12 +80,13 @@ const ProductDetail = () => {
           .eq("id", existingItem.id);
 
         if (error) throw error;
-        
+
         toast({
           title: "Cart updated",
           description: `Added ${quantity} more to your cart`,
         });
       } else {
+        console.log("Inserting new cart item for user:", user.id);
         // Add new item
         const { error } = await supabase
           .from("shopping_cart")
@@ -94,6 +104,11 @@ const ProductDetail = () => {
         });
       }
     } catch (error: any) {
+      console.error("Error in addToCart:", error);
+      if (error.status === 401 || error.status === 403) {
+        console.error("Auth error detected during add to cart");
+      }
+
       toast({
         variant: "destructive",
         title: "Error",
@@ -123,7 +138,7 @@ const ProductDetail = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <div className="container-custom py-12">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Images */}
@@ -141,9 +156,8 @@ const ProductDetail = () => {
                   <button
                     key={idx}
                     onClick={() => setSelectedImage(idx)}
-                    className={`aspect-square bg-secondary rounded-lg overflow-hidden border-2 transition-colors ${
-                      selectedImage === idx ? "border-primary" : "border-transparent"
-                    }`}
+                    className={`aspect-square bg-secondary rounded-lg overflow-hidden border-2 transition-colors ${selectedImage === idx ? "border-primary" : "border-transparent"
+                      }`}
                   >
                     <img
                       src={img}
@@ -161,7 +175,7 @@ const ProductDetail = () => {
             <div>
               <p className="text-sm text-muted-foreground mb-2">{product.category}</p>
               <h1 className="text-display mb-4">{product.name}</h1>
-              
+
               <div className="flex items-baseline gap-3 mb-4">
                 <span className="text-3xl font-bold">
                   GH₵ {displayPrice.toFixed(2)}
