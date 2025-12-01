@@ -50,6 +50,20 @@ const OrderSuccess = () => {
       if (orderError) {
         console.error("Error fetching order:", orderError);
 
+        // Try localStorage fallback immediately
+        const cachedOrder = localStorage.getItem(`order_${reference}`);
+        if (cachedOrder) {
+          console.log("📦 Using cached order data from localStorage");
+          try {
+            const parsedOrder = JSON.parse(cachedOrder);
+            setOrder(parsedOrder);
+            setLoading(false);
+            return;
+          } catch (e) {
+            console.error("Failed to parse cached order:", e);
+          }
+        }
+
         // If not found and we haven't exceeded retries, try again
         if (orderError.code === 'PGRST116' && retryCount < maxRetries) {
           console.log(`Order not found yet, retrying in ${retryDelay}ms...`);
@@ -66,6 +80,20 @@ const OrderSuccess = () => {
 
       if (!orderData) {
         console.error("No order data returned");
+
+        // Try localStorage fallback
+        const cachedOrder = localStorage.getItem(`order_${reference}`);
+        if (cachedOrder) {
+          console.log("📦 Using cached order data from localStorage");
+          try {
+            const parsedOrder = JSON.parse(cachedOrder);
+            setOrder(parsedOrder);
+            setLoading(false);
+            return;
+          } catch (e) {
+            console.error("Failed to parse cached order:", e);
+          }
+        }
 
         // Retry if we haven't exceeded max attempts
         if (retryCount < maxRetries) {
@@ -84,10 +112,27 @@ const OrderSuccess = () => {
       console.log("Order found successfully:", orderData);
       setOrder(orderData);
       setLoading(false);
-      // Cart is already cleared in Checkout.tsx
+
+      // Clean up localStorage after successful database fetch
+      localStorage.removeItem(`order_${reference}`);
 
     } catch (err) {
       console.error("Unexpected error verifying payment:", err);
+
+      // Try localStorage fallback as last resort
+      const cachedOrder = localStorage.getItem(`order_${reference}`);
+      if (cachedOrder) {
+        console.log("📦 Using cached order data from localStorage (after error)");
+        try {
+          const parsedOrder = JSON.parse(cachedOrder);
+          setOrder(parsedOrder);
+          setLoading(false);
+          return;
+        } catch (e) {
+          console.error("Failed to parse cached order:", e);
+        }
+      }
+
       setError("Failed to verify payment. Please check your orders page.");
       setLoading(false);
     }
@@ -164,8 +209,8 @@ const OrderSuccess = () => {
             <div className="border-t border-border pt-6">
               <h3 className="font-semibold mb-4">Items Ordered</h3>
               <div className="space-y-4">
-                {order?.order_items?.map((item: any) => (
-                  <div key={item.id} className="flex gap-4">
+                {order?.order_items?.map((item: any, index: number) => (
+                  <div key={item.id || index} className="flex gap-4">
                     <div className="w-16 h-16 bg-secondary rounded overflow-hidden flex-shrink-0">
                       {item.products?.images?.[0] && (
                         <img

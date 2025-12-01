@@ -257,6 +257,33 @@ const Checkout = () => {
 
           console.log('All operations complete! Redirecting...');
 
+          // Store order data in localStorage as backup for confirmation page
+          const orderBackup = {
+            order_number: orderNumber,
+            total_amount: totalAmount,
+            payment_status: "completed",
+            status: "processing",
+            created_at: new Date().toISOString(),
+            shipping_address: {
+              full_name: shippingAddress.full_name,
+              phone: shippingAddress.phone,
+              address: shippingAddress.street,
+              city: shippingAddress.city,
+              state: shippingAddress.region,
+              postal_code: shippingAddress.postal_code,
+            },
+            order_items: cartItems.map((item) => ({
+              quantity: item.quantity,
+              unit_price: item.products.discount_price || item.products.price,
+              subtotal: (item.products.discount_price || item.products.price) * item.quantity,
+              products: {
+                name: item.products.name,
+                images: item.products.images,
+              }
+            }))
+          };
+          localStorage.setItem(`order_${orderNumber}`, JSON.stringify(orderBackup));
+
           toast({
             title: "Order Placed",
             description: "Your order has been placed successfully",

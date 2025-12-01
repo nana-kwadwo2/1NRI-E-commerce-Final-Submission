@@ -5,9 +5,12 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Facebook, Instagram, Twitter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
+// Hardcoded hero image URL - Update this with your actual Supabase storage URL
+const HARDCODED_HERO_IMAGE = "https://zhssfyjjohzxlwyvpamy.supabase.co/storage/v1/object/public/logos/hero-1764548750177.jpg";
+
 const Index = () => {
   const navigate = useNavigate();
-  const [heroImage, setHeroImage] = useState<string | null>(null);
+  const [heroImage, setHeroImage] = useState<string | null>(HARDCODED_HERO_IMAGE);
   const [aboutText, setAboutText] = useState<string>("");
   const [socialLinks, setSocialLinks] = useState<Record<string, string>>({});
   const [categories, setCategories] = useState<Array<{ id: string; name: string; description?: string }>>([]);
@@ -25,27 +28,20 @@ const Index = () => {
         .single();
 
       if (error) {
-        console.error("Error fetching site settings:", error);
-        // If no rows exist, this is expected on first setup
-        if (error.code === 'PGRST116') {
-          console.log("No site settings found - this is normal for initial setup");
-        }
+        console.log("Using hardcoded hero image (no database settings)");
         return;
       }
 
       if (data) {
-        console.log("Site settings loaded:", data);
+        // Only override hardcoded image if database has one
         if (data.hero_image_url) {
-          console.log("Setting hero image:", data.hero_image_url);
           setHeroImage(data.hero_image_url);
-        } else {
-          console.log("No hero image URL found in database");
         }
         if (data.about_text) setAboutText(data.about_text);
         if (data.social_links) setSocialLinks(data.social_links as Record<string, string>);
       }
     } catch (error) {
-      console.error("Unexpected error in fetchSiteSettings:", error);
+      console.error("Error fetching site settings, using hardcoded values:", error);
     }
   };
 
@@ -62,7 +58,6 @@ const Index = () => {
       }
 
       if (data) {
-        console.log("Categories loaded:", data.length, "categories");
         setCategories(data);
       }
     } catch (error) {
