@@ -19,26 +19,51 @@ const initializeAuth = async () => {
   if (isInitialized) return;
   isInitialized = true;
 
+  console.log("🔐 Initializing auth state...");
+
   // Check for existing session FIRST
   const { data: { session } } = await supabase.auth.getSession();
   globalSession = session;
   globalUser = session?.user ?? null;
   globalLoading = false;
+
+  console.log("🔐 Initial session:", globalUser ? "Logged in" : "Not logged in");
   notifyListeners();
 
-  // THEN set up auth state listener - only notify on meaningful events
+  // THEN set up auth state listener
   const { data: { subscription } } = supabase.auth.onAuthStateChange(
     (event, session) => {
-      // Only notify on these important events, NOT on TOKEN_REFRESHED
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') {
+      console.log("🔐 Auth state change:", event, session?.user ? "User present" : "No user");
+
+      // Handle different auth events
+      if (event === 'SIGNED_IN') {
+        console.log("✅ User signed in");
         globalSession = session;
         globalUser = session?.user ?? null;
         globalLoading = false;
         notifyListeners();
-      } else {
-        // For TOKEN_REFRESHED, just update the session silently
+      } else if (event === 'SIGNED_OUT') {
+        console.log("🚪 User signed out");
+        globalSession = null;
+        globalUser = null;
+        globalLoading = false;
+        notifyListeners();
+      } else if (event === 'USER_UPDATED') {
+        console.log("🔄 User updated");
         globalSession = session;
         globalUser = session?.user ?? null;
+        notifyListeners();
+      } else if (event === 'TOKEN_REFRESHED') {
+        // Silently update session without notifying (prevents unnecessary re-renders)
+        console.log("🔄 Token refreshed (silent update)");
+        globalSession = session;
+        globalUser = session?.user ?? null;
+      } else if (event === 'INITIAL_SESSION') {
+        console.log("🔐 Initial session event");
+        globalSession = session;
+        globalUser = session?.user ?? null;
+        globalLoading = false;
+        notifyListeners();
       }
     }
   );
