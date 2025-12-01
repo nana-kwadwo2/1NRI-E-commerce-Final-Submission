@@ -14,7 +14,7 @@ const OrderSuccess = () => {
 
   useEffect(() => {
     const reference = searchParams.get("reference");
-    
+
     if (!reference) {
       setError("Invalid payment reference");
       setLoading(false);
@@ -39,22 +39,22 @@ const OrderSuccess = () => {
         .eq("order_number", reference)
         .single();
 
-      if (orderError || !orderData) {
+      if (orderError) {
+        console.error("Error fetching order:", orderError);
+        setError("Order not found");
+        setLoading(false);
+        return;
+      }
+
+      if (!orderData) {
         setError("Order not found");
         setLoading(false);
         return;
       }
 
       setOrder(orderData);
-      
-      // Clear the shopping cart
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from("shopping_cart")
-          .delete()
-          .eq("user_id", user.id);
-      }
+      // Cart is already cleared in Checkout.tsx
+
     } catch (err) {
       console.error("Error verifying payment:", err);
       setError("Failed to verify payment");
@@ -95,7 +95,7 @@ const OrderSuccess = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <div className="container-custom py-12">
         <div className="max-w-3xl mx-auto">
           {/* Success Header */}
@@ -110,7 +110,7 @@ const OrderSuccess = () => {
           {/* Order Details */}
           <div className="border border-border rounded-lg p-6 mb-6">
             <h2 className="text-heading mb-4">Order Details</h2>
-            
+
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div>
                 <p className="text-sm text-muted-foreground">Order Number</p>

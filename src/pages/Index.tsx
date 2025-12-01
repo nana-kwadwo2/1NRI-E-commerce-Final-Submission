@@ -42,7 +42,7 @@ const Index = () => {
           console.log("No hero image URL found in database");
         }
         if (data.about_text) setAboutText(data.about_text);
-        if (data.social_links) setSocialLinks(data.social_links);
+        if (data.social_links) setSocialLinks(data.social_links as Record<string, string>);
       }
     } catch (error) {
       console.error("Unexpected error in fetchSiteSettings:", error);

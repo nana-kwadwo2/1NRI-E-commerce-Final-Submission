@@ -202,11 +202,19 @@ const Checkout = () => {
 
       const onSuccess = async (reference: any) => {
         console.log('✅ Payment success callback triggered!', reference);
+        // Keep submitting true to show loading state
+        setSubmitting(true);
 
         try {
-          // Update order status
-          console.log('Updating order...');
-          await supabase
+          toast({
+            title: "Payment Successful",
+            description: "Processing your order...",
+          });
+
+          console.log('Updating order and inventory...');
+
+          // Run independent operations in parallel
+          const updateOrderPromise = supabase
             .from("orders")
             .update({
               payment_status: "completed",
@@ -215,9 +223,8 @@ const Checkout = () => {
             })
             .eq("id", order.id);
 
-          // Reduce stock
-          console.log('Reducing stock...');
-          for (const item of cartItems) {
+          // Prepare stock updates
+          const stockUpdatePromises = cartItems.map(async (item) => {
             const { data: product } = await supabase
               .from("products")
               .select("stock_quantity")
@@ -225,31 +232,39 @@ const Checkout = () => {
               .single();
 
             if (product) {
-              await supabase
+              return supabase
                 .from("products")
                 .update({
-                  stock_quantity: product.stock_quantity - item.quantity,
+                  stock_quantity: Math.max(0, product.stock_quantity - item.quantity),
                 })
                 .eq("id", item.product_id);
             }
-          }
+            return Promise.resolve();
+          });
 
-          // Clear cart
-          console.log('Clearing cart...');
-          await supabase
+          // Clear cart promise
+          const clearCartPromise = supabase
             .from("shopping_cart")
             .delete()
             .eq("user_id", currentUser.id);
 
+          // Wait for all operations to complete
+          await Promise.all([
+            updateOrderPromise,
+            ...stockUpdatePromises,
+            clearCartPromise
+          ]);
+
           console.log('All operations complete! Redirecting...');
 
           toast({
-            title: "Payment Successful",
+            title: "Order Placed",
             description: "Your order has been placed successfully",
           });
 
-          // Use window.location for hard redirect to ensure page reloads
-          window.location.href = `/orders/success?reference=${orderNumber}`;
+          // Use navigate for smooth transition
+          navigate(`/orders/success?reference=${orderNumber}`);
+
         } catch (error: any) {
           console.error("Error processing payment:", error);
           toast({
@@ -257,6 +272,8 @@ const Checkout = () => {
             title: "Error",
             description: "Payment successful but order update failed. Please contact support.",
           });
+          // Even if update fails, try to redirect to success page so user sees something
+          navigate(`/orders/success?reference=${orderNumber}`);
         }
       };
 
